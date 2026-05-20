@@ -74,17 +74,34 @@ class JDContextBuilder:
         text = re.sub(r'[^ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9\s]', '', text)
         return text
 
+    def fetch_job_dict_data(self, job_keyword: str):
+        params = {
+            "authKey": self.worknet_key,
+            "returnType": "XML",
+            "target": "JOBCD", # Job Dictionary target
+            "srchKey": job_keyword
+        }
+        try:
+            # Note: The actual endpoint might differ based on the specific Worknet API version
+            # Here we assume a standard REST call to the Job Dictionary endpoint
+            response = requests.get(self.job_dict_api_url, params=params)
+            data = xmltodict.parse(response.text)
+            dict_data = data.get("jobDictRoot", {}).get("jobDict", [])
+            
+            if isinstance(dict_data, dict):
+                return [dict_data]
+            return dict_data
+        except Exception as e:
+            print(f"Error fetching job dictionary data: {e}")
+            return []
+
     async def build_context(self, job_name: str) -> JDContext:
+        # 1. Fetch real-time recruitment data
         raw_wanted = self.fetch_recruitment_data(job_name)
-        
         job_descs = []
         for item in raw_wanted:
-            # Focus on titles as they often contain key technologies
             title = item.get("wantedTitle", "")
-            # jobsNm often contains detailed job categories
             job_category = item.get("jobsNm", "")
-            
-            # Combine meaningful fields for analysis
             desc_text = f"{title} {job_category}"
             cleaned = self.clean_text(desc_text)
             if cleaned:
@@ -92,12 +109,34 @@ class JDContextBuilder:
             
         keywords = self.extract_keywords(job_descs)
         
-        # Build the final context string
+        # 2. Fetch standard job dictionary data (NCS-based)
+        raw_dict = self.fetch_job_dict_data(job_name)
+        standard_competencies = []
+        
+        if raw_dict:
+            # Extract main tasks or definitions from the dictionary
+            for item in raw_dict[:3]: # Take top 3 related job definitions
+                task = item.get("jobDefinition", "") or item.get("mainWork", "")
+                if task:
+                    cleaned_task = self.clean_text(task)
+                    if cleaned_task:
+                        standard_competencies.append(cleaned_task)
+        
+        # 3. Build the final dynamic context string
         context_str = f"직종: {job_name}\n\n"
         context_str += "시장 주요 요구 사항(추출 키워드):\n"
         context_str += ", ".join([kw.keyword for kw in keywords]) + "\n\n"
         
-        context_str += "표준 직무 역량(NCS 기반):\n- 사용자 요구사항 분석 및 화면 설계\n- 컴포넌트 구조화 및 상태 관리 설계\n- UI 가이드라인 준수 및 디자인 시스템 적용"
+        context_str += "표준 직무 역량(Job Dictionary/NCS 기반):\n"
+        if standard_competencies:
+            for i, comp in enumerate(standard_competencies[:5]):
+                # Limit length for better prompt context
+                context_str += f"- {comp[:150]}...\n"
+        else:
+            # Dynamic fallback based on keywords if dictionary is empty
+            top_kws = ", ".join([kw.keyword for kw in keywords[:3]])
+            context_str += f"- {job_name} 전문가로서 {top_kws} 등을 활용한 업무 수행 능력\n"
+            context_str += f"- 해당 직무 표준에 따른 효율적인 프로세스 관리 및 성과 창출"
         
         return JDContext(
             job_name=job_name,

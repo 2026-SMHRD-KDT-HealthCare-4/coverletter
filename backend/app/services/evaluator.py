@@ -12,12 +12,38 @@ class QAEvaluator:
         if not jd_keywords:
             return 1.0
         
-        matches = 0
-        for kw in jd_keywords:
-            if kw.keyword.lower() in edited_text.lower():
-                matches += 1
+        # In a real-world scenario, simple string matching (contains) can be very brittle.
+        # We can use embedding-based similarity to check if the 'concepts' of the keywords 
+        # are present in the text, or a more robust tokenization.
         
-        return matches / len(jd_keywords)
+        # Strategy: Check for direct matches first, then use semantic similarity for the top keywords
+        matches = 0
+        keyword_texts = [kw.keyword.lower() for kw in jd_keywords]
+        
+        # Tokenize edited text (simple version)
+        edited_tokens = re.findall(r'[ㄱ-ㅎㅏ-ㅣ가-힣a-zA-Z0-9]{2,}', edited_text.lower())
+        
+        for kw_text in keyword_texts:
+            # Direct or partial match
+            if any(kw_text in token or token in kw_text for token in edited_tokens):
+                matches += 1
+                
+        # If matches are very low, we use embedding similarity as a fallback
+        direct_score = matches / len(jd_keywords)
+        
+        if direct_score < 0.3:
+            try:
+                # Compare the embedding of the whole text with the embedding of the concatenated keywords
+                combined_keywords = " ".join(keyword_texts[:7])
+                emb_text = self.vectorizer.openai_ef([edited_text])[0]
+                emb_keywords = self.vectorizer.openai_ef([combined_keywords])[0]
+                semantic_score = float(cosine_similarity([emb_text], [emb_keywords])[0][0])
+                # Combine scores (weighted towards semantic if direct is low)
+                return max(direct_score, semantic_score * 0.8)
+            except:
+                return direct_score
+        
+        return direct_score
 
     def calculate_content_preservation(self, original_draft: str, edited_text: str) -> float:
         # Use embeddings to compare semantic similarity
