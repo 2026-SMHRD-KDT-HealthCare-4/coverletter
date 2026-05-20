@@ -15,11 +15,19 @@
    ```
 2. 가상환경 활성화 및 실행:
    ```bash
-   cd backend
-   # Windows
-   .\venv\Scripts\activate
-   # 백엔드 서버 실행
-   python -m app.main
+cd backend
+
+# 1. 가상 환경 생성 (최초 1회 필수)
+python -m venv venv
+
+# 2. 가상 환경 활성화 (Windows 기준)
+.\venv\Scripts\activate
+
+# 3. 프로젝트 의존성 패키지 설치
+pip install -r requirements.txt
+
+# 4. 백엔드 서버 실행
+python -m app.main
    ```
    *서버는 기본적으로 `http://localhost:8000`에서 실행됩니다.*
 

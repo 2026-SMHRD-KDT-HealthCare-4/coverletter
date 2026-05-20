@@ -51,8 +51,7 @@ const ProfileStep: React.FC = () => {
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               placeholder="예: 프론트엔드 개발자"
               value={profile.target_job}
-              onChange={(e) => setProfile({ target_job: e.target_job })}
-              // Wait, the store's property is target_job, but e.target.value is standard
+              onChange={(e) => setProfile({ target_job: e.target.value })}
             />
           </div>
           
@@ -62,6 +61,7 @@ const ProfileStep: React.FC = () => {
               type="number"
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               value={profile.age}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => setProfile({ age: parseInt(e.target.value) || 0 })}
             />
           </div>
